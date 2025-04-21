@@ -1,0 +1,284 @@
+﻿@{
+    ViewData["Title"] = "PLC Control";
+}
+
+<style>
+    .control-section {
+        margin: 10px 0;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+    }
+
+        .control-section h3 {
+            font-size: 18px;
+        }
+
+    .control-input {
+        width: 65%;
+        padding: 6px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        font-size: 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 140px;
+    }
+
+    .btn-connect {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .btn-disconnect {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .btn-read {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .btn-write {
+        background-color: #ffc107;
+        color: white;
+    }
+
+    .alert {
+        padding: 0.25rem 0.5rem; 
+        margin-top: 10px;
+        font-size: 1rem;
+        font-weight: bold;
+        border-radius: 0.375rem;
+        margin-bottom: 5px;
+    }
+
+    .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .alert-danger {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+</style>
+
+<!-- Connection Block -->
+<div class="control-section">
+    <h3 style="background-color: #f8d7da; padding: 5px; font-style: italic;">Connect to PLC</h3>
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <label for="txtPort" style="font-weight: bold; margin-right: 8px; font-size: 15px;">COM Port:</label>
+        <input type="text" id="txtPort" value="COM1" class="control-input" />
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="btnConnect" class="btn btn-connect" onclick="connect()">Connect</button>
+        <button id="btnDisconnect" class="btn btn-disconnect" onclick="disconnect()" disabled>Disconnect</button>
+    </div>
+    <div id="statusConnect" class="alert"></div>
+</div>
+
+<!-- Register Operations -->
+<div class="control-section">
+    <h3 style="background-color: #cce5ff; padding: 5px; font-style: italic;">Read Operation</h3>
+
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <label for="txtRegister" style="font-weight: bold; margin-right: 8px; font-size: 15px;">Register:</label>
+        <input type="text" id="txtRegister" placeholder="D10" class="control-input" />
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-read" onclick="readRegister()">Read</button>
+    </div>
+    <div id="statusRegister" class="alert"></div>
+</div>
+
+<!-- Write to Register -->
+<div class="control-section">
+    <h3 style="background-color: #ffeeba; padding: 5px; font-style: italic;">Write Operation</h3>
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <label for="txtRegisterWrite" style="font-weight: bold; margin-right: 8px; font-size: 15px;">Register:</label>
+        <input type="text" id="txtRegisterWrite" placeholder="D10" class="control-input" />
+    </div>
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <label for="txtValue" style="font-weight: bold; margin-right: 8px; font-size: 15px;">Value:</label>
+        <input type="text" id="txtValue" placeholder="Value" class="control-input" />
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-write" onclick="writeRegister()">Write</button>
+    </div>
+    <div id="statusWrite" class="alert"></div>
+</div>
+
+<script>
+        async function connect() {
+        let portName = document.getElementById('txtPort').value.trim();
+
+        if (!portName) {
+            updateStatus('Please enter a valid COM port.', 'Connect', false);
+            return;
+        }
+
+        try {
+            let response = await fetch('/Plc/Connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(portName)
+            });
+
+            let data = await response.json();
+            updateStatus(data.message, 'Connect', response.ok);
+
+            if (response.ok) {
+                document.getElementById('btnConnect').disabled = true;
+                document.getElementById('btnDisconnect').disabled = false;
+            }
+        } catch (error) {
+            console.error('Connection Error:', error.message);
+            updateStatus(`Error: ${error.message}`, 'Connect', false);
+        }
+    }
+
+    async function disconnect() {
+        try {
+            let response = await fetch('/Plc/Disconnect', { method: 'POST' });
+            let data = await response.json();
+            updateStatus(data.message, 'Connect', response.ok);
+
+            if (response.ok) {
+                document.getElementById('btnConnect').disabled = false;
+                document.getElementById('btnDisconnect').disabled = true;
+            }
+        } catch (error) {
+            console.error('Disconnection Error:', error);
+            updateStatus('Disconnection failed.', 'Connect', false);
+        }
+    }
+
+    async function readRegister() {
+        let registerInput = document.getElementById('txtRegister').value.trim();
+
+        if (!registerInput) {
+            updateStatus('Please enter a valid register.', 'Register', false);
+            return;
+        }
+
+        let registerNumber = registerInput.startsWith('D') ? registerInput.slice(1) : registerInput;
+
+        try {
+            let response = await fetch('/Plc/ReadRegister', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ register: registerNumber })
+            });
+
+            let data = await response.json();
+            if (data.success) {               
+                updateStatus(`Register: D${registerNumber}, Value: ${data.value}`, 'Register', true);
+            } else {
+                updateStatus(data.message, 'Register', false);
+            }
+        } catch (error) {
+            console.error('Error reading register:', error);
+            updateStatus('Failed to read register.', 'Register', false);
+        }
+    }
+
+    async function writeRegister() {
+        let registerInput = document.getElementById('txtRegisterWrite').value.trim();
+        let value = document.getElementById('txtValue').value.trim();
+
+        if (!registerInput || !value || isNaN(value)) {
+            updateStatus('Please enter a valid register and value.', 'Write', false);
+            return;
+        }
+
+        let registerNumber = registerInput.startsWith('D') ? registerInput.slice(1) : registerInput;
+
+        try {
+            let response = await fetch(`/Plc/WriteRegister?register=${registerNumber}&value=${value}`, {
+                method: 'POST'
+            });
+
+            let result = await response.json();
+            if (result.success) {                
+               updateStatus(`${result.message} The value ${value} has been successfully written to register D${registerNumber}.`, 'Write', true);
+    
+            } else {
+                updateStatus(result.message, 'Write', false);
+            }
+        } catch (error) {
+            console.error('Write Error:', error);
+            updateStatus('Write failed.', 'Write', false);
+        }
+    }
+
+    function updateStatus(message, block, success) {
+        let statusBlock = document.getElementById(`status${block}`);
+        statusBlock.textContent = message;
+        statusBlock.className = `alert ${success ? 'alert-success' : 'alert-danger'}`;
+    }
+
+    //Uncomment later    
+
+    // async function readRegister() {
+    //     let registerNumber = document.getElementById('txtRegister').value.trim();
+
+    //     if (!registerNumber) {
+    //         updateStatus('Please enter a valid register.', 'Register', false);
+    //         return;
+    //     }
+
+    //     try {
+    //         let response = await fetch('/Plc/ReadRegister', {
+    //             method: 'POST',
+    //             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    //             body: new URLSearchParams({ register: registerNumber })
+    //         });
+
+    //         let data = await response.json();
+    //         if (data.success) {
+    //             updateStatus(`Register: D${registerNumber}, Value: ${data.value}`, 'Register', true);
+    //              // updateStatus(`Register: ${data.register}, Value: ${data.value}`, 'Register', true);
+    //         } else {
+    //             updateStatus(data.message, 'Register', false);
+    //         }
+    //     } catch (error) {
+    //         console.error('Error reading register:', error);
+    //         updateStatus('Failed to read register.', 'Register', false);
+    //     }
+    // }        
+
+
+    // async function writeRegister() {
+    //     let register = document.getElementById('txtRegisterWrite').value.trim();
+    //     let value = document.getElementById('txtValue').value.trim();
+
+    //     if (!register || isNaN(register) || !value || isNaN(value)) {
+    //         updateStatus('Please enter a valid register and value.', 'Write', false);
+    //         return;
+    //     }
+
+    //     try {
+    //         let response = await fetch(`/Plc/WriteRegister?register=${register}&value=${value}`, {
+    //             method: 'POST'
+    //         });
+
+    //         let result = await response.json();
+    //         if (result.success) {
+    //             updateStatus(`Wrote ${value} to register ${register}: ${result.message}`, 'Write', true);
+    //         } else {
+    //             updateStatus(result.message, 'Write', false);
+    //         }
+    //     } catch (error) {
+    //         console.error('Write Error:', error);
+    //         updateStatus('Write failed.', 'Write', false);
+    //     }
+    // }
+</script>
